@@ -324,8 +324,9 @@ nigiri_pareto_set_t* nigiri_get_journeys(const nigiri_timetable_t* t,
       .destination_ = {{nigiri::location_idx_t{destination_location_idx},
                         0_minutes, 0U}},
       .prf_idx_ = 0};
-
+  std::cout << "Beginn" << std::endl;
   auto journeys = raptor_search(*t->tt, t->rtt.get(), q, backward_search);
+  std::cout << "Ende" << std::endl;
   auto const n_journeys =
       static_cast<std::size_t>(std::distance(journeys.begin(), journeys.end()));
   auto js = new nigiri_journey_t[n_journeys];

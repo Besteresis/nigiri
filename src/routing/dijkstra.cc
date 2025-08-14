@@ -60,6 +60,7 @@ void dijkstra(timetable const& tt,
     });
   }
 
+
   dijkstra(lb_graph, pq, dists);
 
   for (auto i = 0U; i != tt.n_locations(); ++i) {

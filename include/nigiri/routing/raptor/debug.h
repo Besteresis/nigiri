@@ -226,5 +226,5 @@
 #define trace_print_state_after_round()
 #define trace_print_init_state()
 #define trace_upd(...)
-#define trace(...)
+#define trace(...) //// Nach trace fragen
 #endif

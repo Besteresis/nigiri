@@ -46,7 +46,7 @@ struct raptor_stats {
   std::uint64_t route_update_prevented_by_lower_bound_{0ULL};
 };
 
-enum class search_mode { kOneToOne, kOneToAll };
+enum class search_mode { kOneToOne, kOneToAll }; //// Was bedeutet das?
 
 template <direction SearchDir,
           bool Rt,
@@ -70,6 +70,7 @@ struct raptor {
     return a;
   }();
 
+  static auto is_unreachable(auto a) {return a == kUnreachable;}
   static bool is_better(auto a, auto b) { return kFwd ? a < b : a > b; }
   static bool is_better_or_eq(auto a, auto b) { return kFwd ? a <= b : a >= b; }
   static auto get_best(auto a, auto b) { return is_better(a, b) ? a : b; }
@@ -82,12 +83,12 @@ struct raptor {
   raptor(
       timetable const& tt,
       rt_timetable const* rtt,
-      raptor_state& state,
+      raptor_state& state, //$ Was ist state?
       bitvec& is_dest,
       std::array<bitvec, kMaxVias>& is_via,
       std::vector<std::uint16_t>& dist_to_dest,
-      hash_map<location_idx_t, std::vector<td_offset>> const& td_dist_to_dest,
-      std::vector<std::uint16_t>& lb,
+      hash_map<location_idx_t, std::vector<td_offset>> const& td_dist_to_dest, //$ Was ist idx? Was ist strong? Was ist td_dist_to_dest?
+      std::vector<std::optional<std::array<std::uint16_t, kMaxTransfers + 1>>>& lb,
       std::vector<via_stop> const& via_stops,
       day_idx_t const base,
       clasz_mask_t const allowed_claszes,
@@ -119,7 +120,7 @@ struct raptor {
     reset_arrivals();
     // only used for intermodal queries (dist_to_dest != empty)
     for (auto i = 0U; i != dist_to_dest.size(); ++i) {
-      state_.end_reachable_.set(i, dist_to_dest[i] != kUnreachable);
+      state_.end_reachable_.set(i, dist_to_dest[i] != kUnreachable); //$ Was ist state? Was stellt es dar? Wie ist es aufgebaut
     }
     for (auto const& [l, _] : td_dist_to_end_) {
       state_.end_reachable_.set(to_idx(l), true);
@@ -147,7 +148,7 @@ struct raptor {
   void add_start(location_idx_t const l, unixtime_t const t) {
     auto const v = (Vias != 0 && is_via_[0][to_idx(l)]) ? 1U : 0U;
     trace_upd("adding start {}: {}, v={}\n", location{tt_, l}, t, v);
-    best_[to_idx(l)][v] = unix_to_delta(base(), t);
+    best_[to_idx(l)][v] = unix_to_delta(base(), t); //! is a via stop (and start) -> insert time in best_ for 1 via already reached
     round_times_[0U][to_idx(l)][v] = unix_to_delta(base(), t);
     state_.station_mark_.set(to_idx(l), true);
   }
@@ -169,7 +170,7 @@ struct raptor {
     for (auto k = 1U; k != end_k; ++k) {
       for (auto i = 0U; i != n_locations_; ++i) {
         for (auto v = 0U; v != Vias + 1; ++v) {
-          best_[i][v] = get_best(round_times_[k][i][v], best_[i][v]);
+          best_[i][v] = get_best(round_times_[k][i][v], best_[i][v]); //! Update best_ in case smth got better
         }
       }
       is_dest_.for_each_set_bit([&](std::uint64_t const i) {
@@ -178,7 +179,7 @@ struct raptor {
 
       auto any_marked = false;
       state_.station_mark_.for_each_set_bit([&](std::uint64_t const i) {
-        for (auto const& r : tt_.location_routes_[location_idx_t{i}]) {
+        for (auto const& r : tt_.location_routes_[location_idx_t{i}]) { //! r is routes for location i
           any_marked = true;
           state_.route_mark_.set(to_idx(r), true);
         }
@@ -238,7 +239,7 @@ struct raptor {
 
     is_dest_.for_each_set_bit([&](auto const i) {
       for (auto k = 1U; k != end_k; ++k) {
-        auto const dest_time = round_times_[k][i][Vias];
+        auto const dest_time = round_times_[k][i][Vias]; ////VIAS ansprechen
         if (dest_time != kInvalid) {
           trace("ADDING JOURNEY: start={}, dest={} @ {}, transfers={}\n",
                 start_time, delta_to_unix(base(), round_times_[k][i][Vias]),
@@ -260,7 +261,7 @@ struct raptor {
   }
 
   void reconstruct(query const& q, journey& j) {
-    if constexpr (SearchMode == search_mode::kOneToAll) {
+    if constexpr (SearchMode == search_mode::kOneToAll) { //// SeachMode?
       return;
     }
     reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
@@ -378,8 +379,8 @@ private:
 
         if (is_better(fp_target_time, best_[i][target_v]) &&
             is_better(fp_target_time, time_at_dest_[k])) {
-          if (lb_[i] == kUnreachable ||
-              !is_better(fp_target_time + dir(lb_[i]), time_at_dest_[k])) {
+          if (!lb_[i].has_value() ||
+              !is_better(fp_target_time + dir(*(std::ranges::min_element(lb_[i].value()))), time_at_dest_[k])) { // lb änderung ok
             ++stats_.fp_update_prevented_by_lower_bound_;
             return;
           }
@@ -396,7 +397,7 @@ private:
     });
   }
 
-  void update_footpaths(unsigned const k, profile_idx_t const prf_idx) {
+  void update_footpaths(unsigned const k, profile_idx_t const prf_idx) { //// Was macht profile?
     state_.prev_station_mark_.for_each_set_bit([&](std::uint64_t const i) {
       auto const l_idx = location_idx_t{i};
       if constexpr (Rt) {
@@ -443,9 +444,9 @@ private:
 
           if (is_better(fp_target_time, best_[target][target_v]) &&
               is_better(fp_target_time, time_at_dest_[k])) {
-            auto const lower_bound = lb_[target];
-            if (lower_bound == kUnreachable ||
-                !is_better(fp_target_time + dir(lower_bound),
+            auto const lower_bound = lb_[target];  //lb änderung ok
+            if (!lower_bound.has_value() ||
+                !is_better(fp_target_time + dir(*(std::ranges::min_element(lower_bound.value()))),
                            time_at_dest_[k])) {
               ++stats_.fp_update_prevented_by_lower_bound_;
               trace_upd(
@@ -455,8 +456,8 @@ private:
                   adjusted_transfer_time(transfer_time_settings_,
                                          fp.duration()),
                   location{tt_, fp.target()}, best_[target][target_v],
-                  to_unix(fp_target_time), lower_bound,
-                  to_unix(clamp(fp_target_time + dir(lower_bound))),
+                  to_unix(fp_target_time), lower_bound.has_value() ? *(std::ranges::min_element(lower_bound.value())) : kUnreachable,
+                  to_unix(clamp(fp_target_time + dir(lower_bound.has_value() ? *(std::ranges::min_element(lower_bound.value())) : kUnreachable))),
                   to_unix(time_at_dest_[k]));
               continue;
             }
@@ -542,9 +543,9 @@ private:
 
           if (is_better(fp_target_time, best_[target][target_v]) &&
               is_better(fp_target_time, time_at_dest_[k])) {
-            auto const lower_bound = lb_[target];
-            if (lower_bound == kUnreachable ||
-                !is_better(fp_target_time + dir(lower_bound),
+            auto const lower_bound = lb_[target]; //lb änderung ok
+            if (!lower_bound.has_value() ||
+                !is_better(fp_target_time + dir(*(std::ranges::min_element(lower_bound.value()))),
                            time_at_dest_[k])) {
               ++stats_.fp_update_prevented_by_lower_bound_;
               trace_upd(
@@ -553,8 +554,8 @@ private:
                   "DEST={}\n",
                   k, location{tt_, l_idx}, to_unix(tmp_[to_idx(l_idx)][v]),
                   fp.duration(), location{tt_, fp.target()},
-                  best_[target][target_v], fp_target_time, lower_bound,
-                  to_unix(clamp(fp_target_time + dir(lower_bound))),
+                  best_[target][target_v], fp_target_time, lower_bound.has_value() ? *(std::ranges::min_element(lower_bound.value())) : kUnreachable,
+                  to_unix(clamp(fp_target_time + dir(lower_bound.has_value() ? *(std::ranges::min_element(lower_bound.value())) : kUnreachable))),
                   to_unix(time_at_dest_[k]));
               return utl::cflow::kContinue;
             }
@@ -648,7 +649,7 @@ private:
   }
 
   template <bool WithSectionBikeFilter>
-  bool update_rt_transport(unsigned const k, rt_transport_idx_t const rt_t) {
+  bool update_rt_transport(unsigned const k, rt_transport_idx_t const rt_t) { //wie umgehen mit ändernder rt tabelle
     auto const stop_seq = rtt_->rt_transport_location_seq_[rt_t];
     auto et = std::array<bool, Vias + 1>{};
     auto v_offset = std::array<std::size_t, Vias + 1>{};
@@ -708,8 +709,8 @@ private:
             if (is_better(by_transport, current_best) &&
                 is_better(by_transport, time_at_dest_[k]) &&
                 is_better(by_transport, higher_v_best) &&
-                lb_[l_idx] != kUnreachable &&
-                is_better(by_transport + dir(lb_[l_idx]), time_at_dest_[k])) {
+                lb_[l_idx].has_value() &&
+                is_better(by_transport + dir(*(std::ranges::min_element(lb_[l_idx].value()))), time_at_dest_[k])) { //lb änderung ok
               trace_upd(
                   "┊ │k={}    RT | name={}, dbg={}, time_by_transport={}, "
                   "BETTER THAN current_best={} => update, {} marking station "
@@ -736,8 +737,8 @@ private:
 
               if (is_better(by_transport, best_dest) &&
                   is_better(by_transport, time_at_dest_[k]) &&
-                  lb_[l_idx] != kUnreachable &&
-                  is_better(by_transport + dir(lb_[l_idx]), time_at_dest_[k])) {
+                  lb_[l_idx].has_value() &&
+                  is_better(by_transport + dir(*(std::ranges::min_element(lb_[l_idx].value()))), time_at_dest_[k])) {//lb änderung ok
                 trace_upd(
                     "┊ │k={} v={}->{}   RT name={}, dbg={}, "
                     "time_by_transport={}, "
@@ -760,7 +761,7 @@ private:
         }
       }
 
-      if (lb_[l_idx] == kUnreachable) {
+      if (!lb_[l_idx].has_value()) {
         break;
       }
 
@@ -879,8 +880,8 @@ private:
           if (is_better(by_transport, current_best[v]) &&
               is_better(by_transport, time_at_dest_[k]) &&
               is_better(by_transport, higher_v_best) &&
-              lb_[l_idx] != kUnreachable &&
-              is_better(by_transport + dir(lb_[l_idx]), time_at_dest_[k])) {
+              lb_[l_idx].has_value() &&
+              is_better(by_transport + dir(*(std::ranges::min_element(lb_[l_idx].value()))), time_at_dest_[k])) {//lb änderung ok
             trace_upd(
                 "┊ │k={} v={}->{}    name={}, dbg={}, time_by_transport={}, "
                 "BETTER THAN current_best={} => update, {} marking station "
@@ -912,19 +913,19 @@ private:
                 to_unix(round_times_[k - 1][l_idx][target_v]),
                 to_unix(best_[l_idx][target_v]), to_unix(tmp_[l_idx][target_v]),
                 to_unix(current_best[v]), location{tt_, location_idx_t{l_idx}},
-                lb_[l_idx], to_unix(time_at_dest_[k]),
-                to_unix(clamp(by_transport + dir(lb_[l_idx]))),
+                lb_[l_idx].has_value() ? *(std::ranges::min_element(lb_[l_idx].value())) : kUnreachable, to_unix(time_at_dest_[k]),
+                to_unix(clamp(by_transport + dir(lb_[l_idx].has_value() ? *(std::ranges::min_element(lb_[l_idx].value())) : kUnreachable))),
                 to_unix(higher_v_best), by_transport, to_unix(by_transport),
                 current_best[v], to_unix(current_best[v]),
                 is_better(by_transport, current_best[v]), by_transport,
                 to_unix(by_transport), time_at_dest_[k],
                 to_unix(time_at_dest_[k]),
                 is_better(by_transport, time_at_dest_[k]),
-                lb_[l_idx] != kUnreachable, by_transport + dir(lb_[l_idx]),
-                to_unix(clamp(by_transport + dir(lb_[l_idx]))),
+                lb_[l_idx].has_value(), by_transport + dir(lb_[l_idx].has_value() ? *(std::ranges::min_element(lb_[l_idx].value())) : kUnreachable),
+                to_unix(clamp(by_transport + dir(lb_[l_idx].has_value() ? *(std::ranges::min_element(lb_[l_idx].value())) : kUnreachable))),
                 time_at_dest_[k], to_unix(time_at_dest_[k]),
                 to_unix(time_at_dest_[k]),
-                is_better(clamp(by_transport + dir(lb_[l_idx])),
+                is_better(clamp(by_transport + dir(lb_[l_idx].has_value() ? *(std::ranges::min_element(lb_[l_idx].value())) : kUnreachable)),
                           time_at_dest_[k]));
           }
 
@@ -937,8 +938,8 @@ private:
 
             if (is_better(by_transport, best_dest) &&
                 is_better(by_transport, time_at_dest_[k]) &&
-                lb_[l_idx] != kUnreachable &&
-                is_better(by_transport + dir(lb_[l_idx]), time_at_dest_[k])) {
+                lb_[l_idx].has_value() &&
+                is_better(by_transport + dir(*(std::ranges::min_element(lb_[l_idx].value()))), time_at_dest_[k])) {//lb änderung ok
               trace_upd(
                   "┊ │k={} v={}->{}    name={}, dbg={}, time_by_transport={}, "
                   "BETTER THAN dest_best={} => update, {} marking station "
@@ -969,7 +970,7 @@ private:
         continue;
       }
 
-      if (lb_[l_idx] == kUnreachable) {
+      if (!lb_[l_idx].has_value()) {
         break;
       }
 
@@ -1057,7 +1058,7 @@ private:
         auto const ev_mam = ev.mam();
 
         if (is_better_or_eq(time_at_dest_[k],
-                            to_delta(day, ev_mam) + dir(lb_[to_idx(l)]))) {
+                            to_delta(day, ev_mam) + dir(lb_[to_idx(l)].has_value() ? *(std::ranges::min_element(lb_[to_idx(l)].value())) : kUnreachable))) { // lb Änderung ok
           trace(
               "┊ │k={}      => name={}, dbg={}, day={}={}, best_mam={}, "
               "transport_mam={}, transport_time={} => TIME AT DEST {} IS "
@@ -1142,6 +1143,8 @@ private:
 
   bool is_intermodal_dest() const { return !dist_to_end_.empty(); }
 
+
+  // Update global best time of round k and above, if t is better
   void update_time_at_dest(unsigned const k, delta_t const t) {
     if constexpr (SearchMode == search_mode::kOneToAll) {
       return;
@@ -1183,7 +1186,7 @@ private:
   std::array<bitvec, kMaxVias> const& is_via_;
   std::vector<std::uint16_t> const& dist_to_end_;
   hash_map<location_idx_t, std::vector<td_offset>> const& td_dist_to_end_;
-  std::vector<std::uint16_t> const& lb_;
+  std::vector<std::optional<std::array<std::uint16_t, kMaxTransfers + 1>>> const lb_; //lb_[location].has_value()  <==> lb_[location].value() enthält ein nicht-kUnrechable Wert //$ TODO: Zu Referenz zurückändern, in search wird jetzt eigener Vektor übergeben und referenz hat Fehler verursacht
   std::vector<via_stop> const& via_stops_;
   std::array<delta_t, kMaxTransfers + 1> time_at_dest_;
   day_idx_t base_;

@@ -99,6 +99,7 @@ struct search {
       collect_via_destinations(tt_, via.location_, state_.is_via_[i]);
     }
 
+    auto lb_ = std::vector<std::optional<std::array<std::uint16_t, kMaxTransfers + 1>>>();
     if constexpr (Algo::kUseLowerBounds) {
       auto lb_span = get_otel_tracer()->StartSpan("lower bounds");
       auto lb_scope = opentelemetry::trace::Scope{lb_span};
@@ -106,6 +107,18 @@ struct search {
       dijkstra(tt_, q_,
                kFwd ? tt_.fwd_search_lb_graph_ : tt_.bwd_search_lb_graph_,
                state_.travel_time_lower_bound_);
+      std::for_each(state_.travel_time_lower_bound_.begin(), state_.travel_time_lower_bound_.end(), [&](auto const& lb) {lb_.emplace_back(std::array<std::uint16_t, kMaxTransfers + 1>{lb});});
+      /*std::vector<std::vector<int>> array;
+      for (cista::basic_vecvec<cista::strong<unsigned, _location_idx>,
+                               cista::basic_vector<footpath, cista::raw::ptr>,
+                               cista::basic_vector<unsigned, cista::raw::ptr>>::
+               const_bucket a = tt_.bwd_search_lb_graph_.begin(); a != tt_.bwd_search_lb_graph_.end(); ++a) {
+        array.push_back(std::vector<int>{});
+        for (auto* b = a.begin(); b != a.end(); ++b) {
+          array.back().push_back(b->target_);
+        }
+        std::sort(array.back().begin(), array.back().end());
+      }*/
       UTL_STOP_TIMING(lb);
       stats_.lb_time_ = static_cast<std::uint64_t>(UTL_TIMING_MS(lb));
 
@@ -133,7 +146,7 @@ struct search {
         state_.is_via_,
         state_.dist_to_dest_,
         q_.td_dest_,
-        state_.travel_time_lower_bound_,
+        lb_,
         q_.via_stops_,
         day_idx_t{
             std::chrono::duration_cast<date::days>(

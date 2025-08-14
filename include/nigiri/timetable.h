@@ -263,17 +263,19 @@ struct timetable {
     return transport_idx_t{transport_traffic_days_.size()};
   }
 
+  //Liefert Liste an Zeiten delta von Event ev_type bei Haltestelle stop_idx für alle Fahrten von r (std::span mit n_transports vielen delta)
   std::span<delta const> event_times_at_stop(route_idx_t const r,
                                              stop_idx_t const stop_idx,
                                              event_type const ev_type) const {
     auto const n_transports =
-        static_cast<unsigned>(route_transport_ranges_[r].size());
+        static_cast<unsigned>(route_transport_ranges_[r].size()); //Wie viele Fahrten hat die Route
     auto const idx = static_cast<unsigned>(
         route_stop_time_ranges_[r].from_ +
-        n_transports * (stop_idx * 2 - (ev_type == event_type::kArr ? 1 : 0)));
+        n_transports * (stop_idx * 2 - (ev_type == event_type::kArr ? 1 : 0))); //Beginnindex von Haltestelle>Eventart>Fahrtnummer bei 1>Abfahrt>1
     return std::span<delta const>{&route_stop_times_[idx], n_transports};
   }
 
+  //Liefert Zeit delta von Event ev_type bei Haltestelle stop_idx für Fahrt t von r
   delta event_mam(route_idx_t const r,
                   transport_idx_t t,
                   stop_idx_t const stop_idx,
