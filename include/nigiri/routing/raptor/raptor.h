@@ -258,6 +258,7 @@ struct raptor {
         }
       }
     });
+    std::cout << "Hallo" << std::endl;
   }
 
   void reconstruct(query const& q, journey& j) {
