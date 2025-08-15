@@ -24,8 +24,6 @@
 #include "nigiri/td_footpath.h"
 #include "nigiri/types.h"
 
-#include "common/delta_t.h"
-
 namespace nigiri {
 
 struct timetable {
@@ -393,9 +391,6 @@ struct timetable {
   void write(cista::memory_holder&) const;
   void write(std::filesystem::path const&) const;
   static cista::wrapped<timetable> read(std::filesystem::path const&);
-
-  // Route and Stop i -> Shortest trip duration of Route from Stop i to Stop i+1
-  vector_map<route_idx_t, duration_t> fastest_route_trip_segment;
 
   // Schedule range.
   interval<date::sys_days> date_range_;

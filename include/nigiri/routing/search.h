@@ -99,10 +99,11 @@ struct search {
       collect_via_destinations(tt_, via.location_, state_.is_via_[i]);
     }
 
-    auto lb_ = std::vector<std::optional<std::array<std::uint16_t, kMaxTransfers + 1>>>();
-    bool useNewlb = true;
+    auto lb_ = std::vector<
+        std::optional<std::array<std::uint16_t, kMaxTransfers + 1>>>();
+    constexpr bool useNewlb = true;
     if constexpr (Algo::kUseLowerBounds) {
-      if (!useNewlb) {
+      if constexpr (!useNewlb) {
         auto lb_span = get_otel_tracer()->StartSpan("lower bounds");
         auto lb_scope = opentelemetry::trace::Scope{lb_span};
         UTL_START_TIMING(lb);
@@ -140,9 +141,22 @@ struct search {
 #endif
       }
       else {
-        auto test = tt_.route_ids_;
+        auto const amount_routes = tt_.route_location_seq_.size();
+        std::vector<std::vector<duration_t>> fastest_route_times(amount_routes);
+        for (auto route_idx = 0U; route_idx < amount_routes; ++route_idx) { //for each route from tt_.route_location_seq_
+          auto route = route_idx_t{route_idx};
+          auto const& route_location_seq = tt_.route_location_seq_[route];
+          fastest_route_times[route_idx] = std::vector<duration_t>(route_location_seq.size()-1, duration_t{std::numeric_limits<std::int16_t>::max()});
+          auto ivl = tt_.route_transport_ranges_[route];
+          for (auto transport = ivl.begin(); transport != ivl.end(); ++transport) { // For each transport on route
+            for (auto idx = 0U; idx < route_location_seq.size() - 1; ++idx) { //Do not iterate for the last stop, only until but excluding it
+              fastest_route_times[route_idx][idx] = std::min(fastest_route_times[route_idx][idx],
+                                          (tt_.event_mam(route, *transport, idx + 1U, event_type::kArr) -
+                                           tt_.event_mam(route, *transport, idx, event_type::kDep)).as_duration());
+            }
+          }
+        }
         std::cout << "Hallo" << std::endl;
-        //tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).count()
       }
     }
     return Algo{
