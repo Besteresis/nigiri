@@ -33,6 +33,7 @@ struct search_state {
   ~search_state() = default;
 
   std::vector<std::uint16_t> travel_time_lower_bound_;
+  std::vector<std::vector<duration_t>> fastest_route_times_;
   bitvec is_destination_;
   std::array<bitvec, kMaxVias> is_via_;
   std::vector<std::uint16_t> dist_to_dest_;
@@ -142,15 +143,15 @@ struct search {
       }
       else {
         auto const amount_routes = tt_.route_location_seq_.size();
-        std::vector<std::vector<duration_t>> fastest_route_times(amount_routes);
+        state_.fastest_route_times_ = std::vector<std::vector<duration_t>>(amount_routes);
         for (auto route_idx = 0U; route_idx < amount_routes; ++route_idx) { //for each route from tt_.route_location_seq_
           auto route = route_idx_t{route_idx};
           auto const& route_location_seq = tt_.route_location_seq_[route];
-          fastest_route_times[route_idx] = std::vector<duration_t>(route_location_seq.size()-1, duration_t{std::numeric_limits<std::int16_t>::max()});
+          state_.fastest_route_times_[route_idx] = std::vector<duration_t>(route_location_seq.size()-1, duration_t{std::numeric_limits<std::int16_t>::max()});
           auto ivl = tt_.route_transport_ranges_[route];
           for (auto transport = ivl.begin(); transport != ivl.end(); ++transport) { // For each transport on route
             for (auto idx = 0U; idx < route_location_seq.size() - 1; ++idx) { //Do not iterate for the last stop, only until but excluding it
-              fastest_route_times[route_idx][idx] = std::min(fastest_route_times[route_idx][idx],
+              state_.fastest_route_times_[route_idx][idx] = std::min(state_.fastest_route_times_[route_idx][idx],
                                           (tt_.event_mam(route, *transport, idx + 1U, event_type::kArr) -
                                            tt_.event_mam(route, *transport, idx, event_type::kDep)).as_duration());
             }
